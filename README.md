@@ -42,14 +42,20 @@ uv pip install -e ".[dev]"
 ## Quick Start
 
 ```bash
-# Convert a Box Notes file to Markdown (default)
+# Convert a single Box Notes file to Markdown (default)
 boxnotes convert myfile.boxnote
+
+# Convert all .boxnote files in a directory
+boxnotes batch-convert ~/BoxNotes/
 
 # Convert to plain text
 boxnotes convert myfile.boxnote -f text
 
 # Specify output file
 boxnotes convert myfile.boxnote -o output.md
+
+# Batch convert with recursive subdirectory processing
+boxnotes batch-convert ~/BoxNotes/ --recursive -o ~/Converted/
 
 # Convert to both formats at once
 boxnotes convert myfile.boxnote -f both
@@ -128,16 +134,53 @@ Conversion complete!
 
 ### Batch Conversion
 
-Convert multiple files using shell globbing:
+Convert all `.boxnote` files in a directory with the `batch-convert` command:
 
 ```bash
 # Convert all .boxnote files in a directory
-for file in ~/BoxNotes/*.boxnote; do
-    boxnotes convert "$file"
-done
+boxnotes batch-convert ~/BoxNotes/
 
-# Or using find
-find ~/BoxNotes -name "*.boxnote" -exec boxnotes convert {} \;
+# Convert with custom output directory
+boxnotes batch-convert ~/BoxNotes/ -o ~/Converted/
+
+# Recursively process subdirectories
+boxnotes batch-convert ~/BoxNotes/ --recursive
+
+# Convert to plain text format
+boxnotes batch-convert ~/BoxNotes/ -f text
+
+# Convert to both formats
+boxnotes batch-convert ~/BoxNotes/ -f both
+
+# Verbose output to see progress
+boxnotes batch-convert ~/BoxNotes/ -v
+```
+
+**Features:**
+- Automatically finds all `.boxnote` files in a directory
+- Preserves original `.boxnote` files (never deletes them)
+- Optional recursive processing of subdirectories
+- Progress tracking with file count and success/failure summary
+- Error handling - continues processing even if some files fail
+- Preserves directory structure when using output directory with `--recursive`
+
+**Example output:**
+```
+Found 5 .boxnote file(s)
+
+[1/5] Processing: note1.boxnote
+  ✓ Converted successfully
+
+[2/5] Processing: note2.boxnote
+  ✓ Converted successfully
+
+...
+
+==================================================
+Batch conversion complete!
+  Total files: 5
+  Successful: 5
+  Failed: 0
 ```
 
 ## Supported Features

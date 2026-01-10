@@ -345,3 +345,382 @@ def test_convert_help():
     assert "INPUT_FILE" in result.output
     assert "--output" in result.output
     assert "--format" in result.output
+
+
+def test_batch_convert_basic(tmp_path):
+    """Test basic batch conversion of multiple files."""
+    # Create test directory with multiple .boxnote files
+    test_dir = tmp_path / "notes"
+    test_dir.mkdir()
+
+    # Create first test file (new format)
+    test_file1 = test_dir / "note1.boxnote"
+    test_data1 = {
+        "doc": {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "First note"}],
+                }
+            ],
+        }
+    }
+    with open(test_file1, "w") as f:
+        json.dump(test_data1, f)
+
+    # Create second test file (old format)
+    test_file2 = test_dir / "note2.boxnote"
+    test_data2 = {
+        "atext": {
+            "text": "Second note\n",
+            "attribs": "*0+c|1+1",
+            "pool": {"numToAttrib": {"0": ["font-size-medium", "true"]}},
+        }
+    }
+    with open(test_file2, "w") as f:
+        json.dump(test_data2, f)
+
+    # Run batch conversion
+    runner = CliRunner()
+    result = runner.invoke(cli, ["batch-convert", str(test_dir)])
+
+    assert result.exit_code == 0
+    assert "Found 2 .boxnote file(s)" in result.output
+    assert "Batch conversion complete!" in result.output
+    assert "Successful: 2" in result.output
+
+    # Verify output files created in same directory
+    assert (test_dir / "note1.md").exists()
+    assert (test_dir / "note2.md").exists()
+
+    # Verify original files preserved
+    assert test_file1.exists()
+    assert test_file2.exists()
+
+    # Verify content
+    note1_content = (test_dir / "note1.md").read_text()
+    note2_content = (test_dir / "note2.md").read_text()
+    assert "First note" in note1_content
+    assert "Second note" in note2_content
+
+
+def test_batch_convert_with_output_dir(tmp_path):
+    """Test batch conversion with separate output directory."""
+    # Create test directory with .boxnote files
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    output_dir = tmp_path / "output"
+
+    test_file = input_dir / "test.boxnote"
+    test_data = {
+        "doc": {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Test content"}],
+                }
+            ],
+        }
+    }
+    with open(test_file, "w") as f:
+        json.dump(test_data, f)
+
+    # Run batch conversion with output directory
+    runner = CliRunner()
+    result = runner.invoke(
+        cli, ["batch-convert", str(input_dir), "-o", str(output_dir)]
+    )
+
+    assert result.exit_code == 0
+    assert output_dir.exists()
+    assert (output_dir / "test.md").exists()
+    assert not (input_dir / "test.md").exists()  # Should not create in input dir
+
+    # Verify original file preserved
+    assert test_file.exists()
+
+
+def test_batch_convert_recursive(tmp_path):
+    """Test batch conversion with recursive subdirectory processing."""
+    # Create nested directory structure
+    root_dir = tmp_path / "root"
+    root_dir.mkdir()
+    sub_dir1 = root_dir / "sub1"
+    sub_dir1.mkdir()
+    sub_dir2 = root_dir / "sub1" / "sub2"
+    sub_dir2.mkdir()
+
+    # Create files in different directories
+    file1 = root_dir / "root.boxnote"
+    file2 = sub_dir1 / "sub1.boxnote"
+    file3 = sub_dir2 / "sub2.boxnote"
+
+    test_data = {
+        "doc": {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Test"}],
+                }
+            ],
+        }
+    }
+
+    for f in [file1, file2, file3]:
+        with open(f, "w") as fp:
+            json.dump(test_data, fp)
+
+    # Run batch conversion with recursive flag
+    runner = CliRunner()
+    result = runner.invoke(cli, ["batch-convert", str(root_dir), "--recursive"])
+
+    assert result.exit_code == 0
+    assert "Found 3 .boxnote file(s)" in result.output
+    assert "Successful: 3" in result.output
+
+    # Verify all files converted
+    assert (root_dir / "root.md").exists()
+    assert (sub_dir1 / "sub1.md").exists()
+    assert (sub_dir2 / "sub2.md").exists()
+
+    # Verify original files preserved
+    assert file1.exists()
+    assert file2.exists()
+    assert file3.exists()
+
+
+def test_batch_convert_recursive_with_output_dir(tmp_path):
+    """Test recursive batch conversion preserving directory structure."""
+    # Create nested directory structure
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    sub_dir = input_dir / "subfolder"
+    sub_dir.mkdir()
+    output_dir = tmp_path / "output"
+
+    # Create files in different directories
+    file1 = input_dir / "root.boxnote"
+    file2 = sub_dir / "sub.boxnote"
+
+    test_data = {
+        "doc": {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Test"}],
+                }
+            ],
+        }
+    }
+
+    for f in [file1, file2]:
+        with open(f, "w") as fp:
+            json.dump(test_data, fp)
+
+    # Run recursive batch conversion with output directory
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["batch-convert", str(input_dir), "--recursive", "-o", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+
+    # Verify directory structure preserved in output
+    assert (output_dir / "root.md").exists()
+    assert (output_dir / "subfolder" / "sub.md").exists()
+
+
+def test_batch_convert_both_formats(tmp_path):
+    """Test batch conversion to both markdown and text."""
+    test_dir = tmp_path / "notes"
+    test_dir.mkdir()
+
+    test_file = test_dir / "test.boxnote"
+    test_data = {
+        "doc": {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Test content"}],
+                }
+            ],
+        }
+    }
+    with open(test_file, "w") as f:
+        json.dump(test_data, f)
+
+    # Run batch conversion with both format
+    runner = CliRunner()
+    result = runner.invoke(cli, ["batch-convert", str(test_dir), "-f", "both"])
+
+    assert result.exit_code == 0
+    assert (test_dir / "test.md").exists()
+    assert (test_dir / "test.txt").exists()
+
+    # Verify original file preserved
+    assert test_file.exists()
+
+
+def test_batch_convert_to_text_format(tmp_path):
+    """Test batch conversion to plain text format."""
+    test_dir = tmp_path / "notes"
+    test_dir.mkdir()
+
+    test_file = test_dir / "test.boxnote"
+    test_data = {
+        "doc": {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "heading",
+                    "attrs": {"level": 1},
+                    "content": [{"type": "text", "text": "Title"}],
+                }
+            ],
+        }
+    }
+    with open(test_file, "w") as f:
+        json.dump(test_data, f)
+
+    # Run batch conversion to text
+    runner = CliRunner()
+    result = runner.invoke(cli, ["batch-convert", str(test_dir), "-f", "text"])
+
+    assert result.exit_code == 0
+    assert (test_dir / "test.txt").exists()
+    assert not (test_dir / "test.md").exists()
+
+    # Verify content
+    content = (test_dir / "test.txt").read_text()
+    assert "Title" in content
+
+
+def test_batch_convert_empty_directory(tmp_path):
+    """Test batch conversion with directory containing no .boxnote files."""
+    test_dir = tmp_path / "empty"
+    test_dir.mkdir()
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["batch-convert", str(test_dir)])
+
+    assert result.exit_code == 0
+    assert "No .boxnote files found" in result.output
+
+
+def test_batch_convert_error_handling(tmp_path):
+    """Test batch conversion with mixed valid and invalid files."""
+    test_dir = tmp_path / "notes"
+    test_dir.mkdir()
+
+    # Create valid file
+    valid_file = test_dir / "valid.boxnote"
+    valid_data = {
+        "doc": {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Valid"}],
+                }
+            ],
+        }
+    }
+    with open(valid_file, "w") as f:
+        json.dump(valid_data, f)
+
+    # Create invalid file (bad JSON)
+    invalid_file = test_dir / "invalid.boxnote"
+    invalid_file.write_text("not valid json")
+
+    # Run batch conversion
+    runner = CliRunner()
+    result = runner.invoke(cli, ["batch-convert", str(test_dir)])
+
+    assert result.exit_code == 1  # Should exit with error due to failures
+    assert "Successful: 1" in result.output
+    assert "Failed: 1" in result.output
+
+    # Verify valid file was converted
+    assert (test_dir / "valid.md").exists()
+
+    # Verify original files preserved
+    assert valid_file.exists()
+    assert invalid_file.exists()
+
+
+def test_batch_convert_verbose_mode(tmp_path):
+    """Test batch conversion with verbose output."""
+    test_dir = tmp_path / "notes"
+    test_dir.mkdir()
+
+    test_file = test_dir / "test.boxnote"
+    test_data = {
+        "doc": {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Test"}],
+                }
+            ],
+        }
+    }
+    with open(test_file, "w") as f:
+        json.dump(test_data, f)
+
+    # Run batch conversion with verbose flag
+    runner = CliRunner()
+    result = runner.invoke(cli, ["batch-convert", str(test_dir), "-v"])
+
+    assert result.exit_code == 0
+    assert "Reading Box Notes file" in result.output
+    assert "Detected format" in result.output
+    assert "Parsing document" in result.output
+    assert "Converting to markdown" in result.output
+
+
+def test_batch_convert_force_format(tmp_path):
+    """Test batch conversion with forced format parser."""
+    test_dir = tmp_path / "notes"
+    test_dir.mkdir()
+
+    test_file = test_dir / "test.boxnote"
+    test_data = {
+        "doc": {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Test"}],
+                }
+            ],
+        }
+    }
+    with open(test_file, "w") as f:
+        json.dump(test_data, f)
+
+    # Run batch conversion with forced new format
+    runner = CliRunner()
+    result = runner.invoke(cli, ["batch-convert", str(test_dir), "--force-new", "-v"])
+
+    assert result.exit_code == 0
+    assert "Forcing new format parser" in result.output
+
+
+def test_batch_convert_help():
+    """Test batch-convert subcommand help."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["batch-convert", "--help"])
+
+    assert result.exit_code == 0
+    assert "DIRECTORY" in result.output
+    assert "--output-dir" in result.output
+    assert "--recursive" in result.output
+    assert "Original .boxnote" in result.output
+    assert "preserved" in result.output
