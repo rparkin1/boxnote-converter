@@ -66,6 +66,8 @@ class PlainTextConverter(DocumentConverter):
             return self._convert_list(block, indent_level)
         elif block.type == BlockType.TABLE:
             return self._convert_table(block)
+        elif block.type == BlockType.IMAGE:
+            return self._convert_image(block)
         else:
             # Unknown block type, convert as paragraph
             return self._convert_paragraph(block)
@@ -102,6 +104,15 @@ class PlainTextConverter(DocumentConverter):
         # Indent and add > prefix
         lines = text.split("\n")
         return "\n".join(f"    > {line}" for line in lines)
+
+    def _convert_image(self, block: Block) -> str:
+        """Convert image block to plain text."""
+        # Get image attributes
+        url = block.image_path or block.image_url or ""
+        alt = block.image_alt or "image"
+
+        # Plain text representation: [Image: alt] (url)
+        return f"[Image: {alt}] ({url})"
 
     def _convert_list(self, block: Block, indent_level: int = 0) -> str:
         """Convert list block to plain text."""

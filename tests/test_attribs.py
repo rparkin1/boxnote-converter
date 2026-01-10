@@ -146,9 +146,7 @@ class TestResolveAttributes:
 
     def test_resolve_multiple_attributes(self) -> None:
         """Test resolving multiple attributes."""
-        pool = {
-            "numToAttrib": {"0": ["bold", "true"], "1": ["italic", "true"]}
-        }
+        pool = {"numToAttrib": {"0": ["bold", "true"], "1": ["italic", "true"]}}
         attrs = resolve_attributes({0, 1}, pool)
         assert len(attrs) == 2
         assert ("bold", "true") in attrs
@@ -203,9 +201,7 @@ class TestExtractTextSpans:
             AttributeChunk({0}, 5, 0),  # "Hello"
             AttributeChunk({1}, 6, 0),  # " world"
         ]
-        pool = {
-            "numToAttrib": {"0": ["bold", "true"], "1": ["italic", "true"]}
-        }
+        pool = {"numToAttrib": {"0": ["bold", "true"], "1": ["italic", "true"]}}
         spans = extract_text_spans(text, chunks, pool)
         assert len(spans) == 2
         assert spans[0] == ("Hello", [("bold", "true")])
@@ -218,9 +214,7 @@ class TestExtractTextSpans:
             AttributeChunk({0}, 5, 1),  # "Hello" + 1 linebreak
             AttributeChunk({1}, 5, 0),  # "world"
         ]
-        pool = {
-            "numToAttrib": {"0": ["bold", "true"], "1": ["italic", "true"]}
-        }
+        pool = {"numToAttrib": {"0": ["bold", "true"], "1": ["italic", "true"]}}
         spans = extract_text_spans(text, chunks, pool)
         assert len(spans) == 3
         assert spans[0] == ("Hello", [("bold", "true")])

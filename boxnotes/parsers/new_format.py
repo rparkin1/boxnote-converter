@@ -115,6 +115,8 @@ class NewFormatParser(BoxNoteParser):
             return self._parse_list(node, ListType.CHECK)
         elif node_type == "table":
             return self._parse_table(node)
+        elif node_type == "image":
+            return self._parse_image(node)
 
         # Unknown node type - return None
         return None
@@ -123,9 +125,7 @@ class NewFormatParser(BoxNoteParser):
         """Parse a paragraph node."""
         content = self._parse_inline_content(node.get("content", []))
         return Block(
-            type=BlockType.PARAGRAPH,
-            content=content,
-            attributes=node.get("attrs", {})
+            type=BlockType.PARAGRAPH, content=content, attributes=node.get("attrs", {})
         )
 
     def _parse_heading(self, node: Dict[str, Any]) -> Block:
@@ -142,33 +142,47 @@ class NewFormatParser(BoxNoteParser):
             type=BlockType.HEADING,
             content=content,
             heading_level=level,
-            attributes=attrs
+            attributes=attrs,
         )
 
     def _parse_code_block(self, node: Dict[str, Any]) -> Block:
         """Parse a code block node."""
         content = self._parse_inline_content(node.get("content", []))
         return Block(
-            type=BlockType.CODE_BLOCK,
-            content=content,
-            attributes=node.get("attrs", {})
+            type=BlockType.CODE_BLOCK, content=content, attributes=node.get("attrs", {})
         )
 
     def _parse_blockquote(self, node: Dict[str, Any]) -> Block:
         """Parse a blockquote node."""
         content = self._parse_inline_content(node.get("content", []))
         return Block(
-            type=BlockType.BLOCKQUOTE,
-            content=content,
-            attributes=node.get("attrs", {})
+            type=BlockType.BLOCKQUOTE, content=content, attributes=node.get("attrs", {})
         )
 
     def _parse_horizontal_rule(self, node: Dict[str, Any]) -> Block:
         """Parse a horizontal rule node."""
         return Block(
-            type=BlockType.HORIZONTAL_RULE,
+            type=BlockType.HORIZONTAL_RULE, content=[], attributes=node.get("attrs", {})
+        )
+
+    def _parse_image(self, node: Dict[str, Any]) -> Block:
+        """Parse an image node."""
+        attrs = node.get("attrs", {})
+
+        # Extract image URL/src
+        image_url = attrs.get("src") or attrs.get("url") or attrs.get("href")
+
+        # Extract alt text and title
+        image_alt = attrs.get("alt") or attrs.get("title")
+        image_title = attrs.get("title")
+
+        return Block(
+            type=BlockType.IMAGE,
             content=[],
-            attributes=node.get("attrs", {})
+            image_url=image_url,
+            image_alt=image_alt,
+            image_title=image_title,
+            attributes=attrs,
         )
 
     def _parse_list(self, node: Dict[str, Any], list_type: ListType) -> Block:
@@ -185,7 +199,7 @@ class NewFormatParser(BoxNoteParser):
             type=BlockType.LIST,
             list_type=list_type,
             children=children,
-            attributes=node.get("attrs", {})
+            attributes=node.get("attrs", {}),
         )
 
     def _parse_list_item(
@@ -213,7 +227,7 @@ class NewFormatParser(BoxNoteParser):
             type=BlockType.LIST_ITEM,
             content=all_content,
             checked=checked,
-            attributes=node.get("attrs", {})
+            attributes=node.get("attrs", {}),
         )
 
     def _parse_table(self, node: Dict[str, Any]) -> Block:
@@ -227,9 +241,7 @@ class NewFormatParser(BoxNoteParser):
                     children.append(row_block)
 
         return Block(
-            type=BlockType.TABLE,
-            children=children,
-            attributes=node.get("attrs", {})
+            type=BlockType.TABLE, children=children, attributes=node.get("attrs", {})
         )
 
     def _parse_table_row(self, node: Dict[str, Any]) -> Optional[Block]:
@@ -245,7 +257,7 @@ class NewFormatParser(BoxNoteParser):
         return Block(
             type=BlockType.TABLE_ROW,
             children=children,
-            attributes=node.get("attrs", {})
+            attributes=node.get("attrs", {}),
         )
 
     def _parse_table_cell(self, node: Dict[str, Any]) -> Optional[Block]:
@@ -264,12 +276,10 @@ class NewFormatParser(BoxNoteParser):
         return Block(
             type=BlockType.TABLE_CELL,
             content=all_content,
-            attributes=node.get("attrs", {})
+            attributes=node.get("attrs", {}),
         )
 
-    def _parse_inline_content(
-        self, content: List[Dict[str, Any]]
-    ) -> List[TextSpan]:
+    def _parse_inline_content(self, content: List[Dict[str, Any]]) -> List[TextSpan]:
         """
         Parse inline content (text nodes with marks).
 
@@ -294,6 +304,18 @@ class NewFormatParser(BoxNoteParser):
 
             elif node_type == "hard_break":
                 spans.append(TextSpan(text="\n", attributes=TextAttributes()))
+
+            elif node_type == "image":
+                # Handle inline images - create image reference text
+                attrs_dict = node.get("attrs", {})
+                image_url = attrs_dict.get("src") or attrs_dict.get("url", "")
+                image_alt = attrs_dict.get("alt", "image")
+                # Create a text representation of the image
+                spans.append(
+                    TextSpan(
+                        text=f"[{image_alt}]({image_url})", attributes=TextAttributes()
+                    )
+                )
 
         return spans
 

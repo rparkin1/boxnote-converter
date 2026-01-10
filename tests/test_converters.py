@@ -146,7 +146,11 @@ class TestMarkdownConverter:
         converter = MarkdownConverter()
         block = Block(
             type=BlockType.CODE_BLOCK,
-            content=[TextSpan(text="def hello():\n    print('hello')", attributes=TextAttributes())],
+            content=[
+                TextSpan(
+                    text="def hello():\n    print('hello')", attributes=TextAttributes()
+                )
+            ],
         )
         document = Document(blocks=[block])
         result = converter.convert(document)

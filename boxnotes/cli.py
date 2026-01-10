@@ -11,10 +11,11 @@ from boxnotes.converters.markdown import MarkdownConverter
 from boxnotes.converters.plaintext import PlainTextConverter
 from boxnotes.detector import detect_format
 from boxnotes.exceptions import BoxNotesError, ConversionError, ParsingError
-from boxnotes.models import Document, FormatType
+from boxnotes.models import BlockType, Document, FormatType
 from boxnotes.parsers.base import BoxNoteParser
 from boxnotes.parsers.new_format import NewFormatParser
 from boxnotes.parsers.old_format import OldFormatParser
+from boxnotes.utils.images import copy_box_notes_images, extract_image
 
 
 @click.group()
@@ -61,6 +62,16 @@ def cli() -> None:
 @click.option(
     "-v", "--verbose", is_flag=True, help="Show verbose output during conversion"
 )
+@click.option(
+    "--extract-images/--no-extract-images",
+    default=True,
+    help="Extract embedded images to files (default: enabled)",
+)
+@click.option(
+    "--images-dir",
+    type=click.Path(path_type=Path),
+    help="Directory for extracted images (default: same as output)",
+)
 def convert(
     input_file: Path,
     output: Optional[Path],
@@ -68,6 +79,8 @@ def convert(
     auto_detect: bool,
     force_format: Optional[str],
     verbose: bool,
+    extract_images: bool,
+    images_dir: Optional[Path],
 ) -> None:
     """
     Convert a Box Notes file to Markdown or plain text.
@@ -114,6 +127,12 @@ def convert(
 
         if verbose:
             click.echo(f"Parsed {len(document.blocks)} blocks")
+
+        # Extract images if requested
+        if extract_images:
+            _extract_images_from_document(
+                document, input_file, output, images_dir, verbose
+            )
 
         # Convert to requested format(s)
         if output_format == "both":
@@ -276,6 +295,16 @@ def _convert_both_formats(
 @click.option(
     "-v", "--verbose", is_flag=True, help="Show verbose output during conversion"
 )
+@click.option(
+    "--extract-images/--no-extract-images",
+    default=True,
+    help="Extract embedded images to files (default: enabled)",
+)
+@click.option(
+    "--images-dir",
+    type=click.Path(path_type=Path),
+    help="Directory for extracted images (default: next to each output file)",
+)
 def batch_convert(
     directory: Path,
     output_dir: Optional[Path],
@@ -284,6 +313,8 @@ def batch_convert(
     auto_detect: bool,
     force_format: Optional[str],
     verbose: bool,
+    extract_images: bool,
+    images_dir: Optional[Path],
 ) -> None:
     """
     Batch convert all Box Notes files in a directory.
@@ -384,6 +415,12 @@ def batch_convert(
                         output_base = output_dir / input_file.stem
                 else:
                     output_base = input_file.parent / input_file.stem
+
+                # Extract images if requested
+                if extract_images:
+                    _extract_images_for_batch(
+                        document, input_file, output_base, images_dir, verbose
+                    )
 
                 # Convert to requested format(s)
                 if output_format == "both":
@@ -535,6 +572,153 @@ def _batch_convert_both_formats(
 
     with open(txt_path, "w", encoding="utf-8") as f:
         f.write(txt_result)
+
+
+def _extract_images_from_document(
+    document: Document,
+    input_file: Path,
+    output: Optional[Path],
+    images_dir: Optional[Path],
+    verbose: bool,
+) -> None:
+    """
+    Extract images from document and update image paths.
+
+    Args:
+        document: Document with potential image blocks
+        input_file: Input file path
+        output: Output file path (optional)
+        images_dir: Directory for extracted images (optional)
+        verbose: Verbose output flag
+    """
+    # Determine images directory
+    if images_dir:
+        img_dir = images_dir
+    elif output:
+        # Place images next to output file
+        img_dir = output.parent / f"{output.stem}_images"
+    else:
+        # Place images next to input file
+        img_dir = input_file.parent / f"{input_file.stem}_images"
+
+    # Count images for reporting
+    image_count = 0
+
+    # Process all blocks recursively
+    def process_blocks(blocks: list) -> None:
+        nonlocal image_count
+        for block in blocks:
+            if block.type == BlockType.IMAGE and block.image_url:
+                # Extract image
+                if verbose:
+                    click.echo(f"Extracting image: {block.image_alt or 'untitled'}")
+
+                extracted_path = extract_image(
+                    block.image_url, img_dir, f"image_{image_count:03d}"
+                )
+
+                if extracted_path:
+                    # Update block with relative path to extracted image
+                    # Use relative path from output location
+                    block.image_path = f"{img_dir.name}/{extracted_path}"
+                    image_count += 1
+                    if verbose:
+                        click.echo(f"  Saved to: {block.image_path}")
+
+            # Process children recursively
+            if block.children:
+                process_blocks(block.children)
+
+    process_blocks(document.blocks)
+
+    # Also copy any external images from Box Notes Images directory
+    def verbose_callback(msg: str) -> None:
+        if verbose:
+            click.echo(f"  {msg}")
+
+    copied_files = copy_box_notes_images(input_file, img_dir, verbose_callback)
+
+    if copied_files:
+        if verbose:
+            click.echo(
+                f"Copied {len(copied_files)} external image(s) from Box Notes Images"
+            )
+        image_count += len(copied_files)
+
+    if image_count > 0 and verbose:
+        click.echo(f"Total: {image_count} image(s) in {img_dir}")
+
+
+def _extract_images_for_batch(
+    document: Document,
+    input_file: Path,
+    output_base: Path,
+    images_dir: Optional[Path],
+    verbose: bool,
+) -> None:
+    """
+    Extract images from document for batch conversion.
+
+    Args:
+        document: Document with potential image blocks
+        input_file: Input file path
+        output_base: Output file base path (without extension)
+        images_dir: Directory for extracted images (optional)
+        verbose: Verbose output flag
+    """
+    # Determine images directory
+    if images_dir:
+        img_dir = images_dir
+    else:
+        # Place images next to output file
+        img_dir = output_base.parent / f"{output_base.name}_images"
+
+    # Count images for reporting
+    image_count = 0
+
+    # Process all blocks recursively
+    def process_blocks(blocks: list) -> None:
+        nonlocal image_count
+        for block in blocks:
+            if block.type == BlockType.IMAGE and block.image_url:
+                # Extract image
+                if verbose:
+                    click.echo(f"  Extracting image: {block.image_alt or 'untitled'}")
+
+                extracted_path = extract_image(
+                    block.image_url, img_dir, f"image_{image_count:03d}"
+                )
+
+                if extracted_path:
+                    # Update block with relative path to extracted image
+                    # Use relative path from output location
+                    block.image_path = f"{img_dir.name}/{extracted_path}"
+                    image_count += 1
+                    if verbose:
+                        click.echo(f"    Saved to: {block.image_path}")
+
+            # Process children recursively
+            if block.children:
+                process_blocks(block.children)
+
+    process_blocks(document.blocks)
+
+    # Also copy any external images from Box Notes Images directory
+    def verbose_callback(msg: str) -> None:
+        if verbose:
+            click.echo(f"    {msg}")
+
+    copied_files = copy_box_notes_images(input_file, img_dir, verbose_callback)
+
+    if copied_files:
+        if verbose:
+            click.echo(
+                f"  Copied {len(copied_files)} external image(s) from Box Notes Images"
+            )
+        image_count += len(copied_files)
+
+    if image_count > 0 and verbose:
+        click.echo(f"  Total: {image_count} image(s) in {img_dir}")
 
 
 def main() -> None:

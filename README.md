@@ -127,9 +127,63 @@ Reading Box Notes file: notes.boxnote
 Detected format: new
 Parsing document with new format parser
 Parsed 15 blocks
+Extracting image: company-logo
+  Saved to: notes_images/image_000_a1b2c3d4e5f6.png
+Extracting image: screenshot
+  Saved to: notes_images/image_001_f6e5d4c3b2a1.png
+Extracted 2 image(s) to notes_images
 Converting to markdown
 Writing output to: notes.md
 Conversion complete!
+```
+
+### Image Extraction
+
+By default, embedded images (base64-encoded data URIs) are automatically extracted and saved as separate image files:
+
+```bash
+# Extract images (default behavior)
+boxnotes convert notes.boxnote
+
+# Disable image extraction
+boxnotes convert notes.boxnote --no-extract-images
+
+# Specify custom images directory
+boxnotes convert notes.boxnote --images-dir ./my-images
+```
+
+**Image Handling:**
+- Embedded images (data URIs) are extracted to `{filename}_images/` directory
+- External images stored in Box Notes Images directory are automatically copied
+- External image URLs (http/https) are preserved as-is in the output
+- Image filenames are generated from content hash to avoid duplicates
+- Alt text and titles are preserved in the markdown output
+- In plain text format, images appear as `[Image: description] (url)`
+
+**Box Notes Images Directory:**
+
+Box Notes stores some images externally in a special directory structure:
+```
+MyBoxNotes/
+├── 2020 Roadmap.boxnote
+└── Box Notes Images/
+    └── 2020 Roadmap Images/
+        └── Screen Shot 2019-10-02 at 12.57.14 PM.png
+```
+
+The converter automatically detects and copies these external images to the output images directory.
+
+**Example:**
+
+Input Box Note contains:
+- `data:image/png;base64,iVBORw0...` (embedded image)
+- `https://example.com/logo.png` (external URL)
+
+Output markdown:
+```markdown
+![Screenshot](notes_images/image_000_abc123.png)
+
+![Company Logo](https://example.com/logo.png)
 ```
 
 ### Batch Conversion
@@ -154,12 +208,30 @@ boxnotes batch-convert ~/BoxNotes/ -f both
 
 # Verbose output to see progress
 boxnotes batch-convert ~/BoxNotes/ -v
+
+# Extract images (default behavior)
+boxnotes batch-convert ~/BoxNotes/ --extract-images
+
+# Disable image extraction
+boxnotes batch-convert ~/BoxNotes/ --no-extract-images
+
+# Use custom directory for all images
+boxnotes batch-convert ~/BoxNotes/ --images-dir ./all_images
 ```
+
+**Image Handling in Batch Mode:**
+- Embedded images are extracted by default to `{filename}_images/` next to each output file
+- External images from Box Notes Images directories are automatically copied
+- Use `--images-dir` to save all images to a single centralized directory
+- Use `--no-extract-images` to skip image extraction entirely
+- Progress shows image extraction and copying for each file in verbose mode
 
 **Features:**
 - Automatically finds all `.boxnote` files in a directory
 - Preserves original `.boxnote` files (never deletes them)
 - Optional recursive processing of subdirectories
+- **Image extraction** - automatically extracts embedded images and copies external images from Box Notes Images directories
+- Custom images directory option for centralized image storage
 - Progress tracking with file count and success/failure summary
 - Error handling - continues processing even if some files fail
 - Preserves directory structure when using output directory with `--recursive`
@@ -205,6 +277,17 @@ Batch conversion complete!
 - Ordered lists
 - Check lists (task lists)
 - Tables
+- **Images** (embedded and external)
+
+### Image Support
+
+Box Notes converter can extract and handle embedded images:
+
+- **Data URIs**: Base64-encoded images are extracted and saved as separate files
+- **External URLs**: HTTP/HTTPS image URLs are preserved in the output
+- **Alt text**: Image descriptions are maintained
+- **Automatic extraction**: Images are extracted by default to a `{filename}_images/` directory
+- **Custom output**: Specify a custom directory for extracted images
 
 ### Lists
 
@@ -341,7 +424,8 @@ boxnotes/
 │   │   ├── markdown.py   # Markdown converter
 │   │   └── plaintext.py  # Plain text converter
 │   └── utils/            # Utilities
-│       └── attribs.py    # Attribute decompression
+│       ├── attribs.py    # Attribute decompression
+│       └── images.py     # Image extraction and handling
 ├── tests/                # Test suite
 └── pyproject.toml        # Project configuration
 ```

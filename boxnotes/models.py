@@ -18,6 +18,7 @@ class BlockType(Enum):
     TABLE_ROW = "table_row"
     TABLE_CELL = "table_cell"
     HORIZONTAL_RULE = "hr"
+    IMAGE = "image"
 
 
 class ListType(Enum):
@@ -92,6 +93,12 @@ class Block:
     heading_level: Optional[int] = None  # For headings: 1, 2, or 3
     list_type: Optional[ListType] = None  # For list blocks
     checked: Optional[bool] = None  # For check list items
+
+    # Image-specific attributes
+    image_url: Optional[str] = None  # Image URL or data URI
+    image_path: Optional[str] = None  # Path to extracted image file
+    image_alt: Optional[str] = None  # Alt text for image
+    image_title: Optional[str] = None  # Title for image
 
     def __post_init__(self) -> None:
         """Validate block."""

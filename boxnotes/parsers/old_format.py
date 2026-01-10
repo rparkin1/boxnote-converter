@@ -159,9 +159,11 @@ class OldFormatParser(BoxNoteParser):
             name_lower = name.lower()
 
             # Check for heading
-            if "heading" in name_lower or name_lower.startswith("h") and name_lower[
-                1:
-            ].isdigit():
+            if (
+                "heading" in name_lower
+                or name_lower.startswith("h")
+                and name_lower[1:].isdigit()
+            ):
                 return BlockType.HEADING
 
             # Check for list

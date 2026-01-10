@@ -724,3 +724,144 @@ def test_batch_convert_help():
     assert "--recursive" in result.output
     assert "Original .boxnote" in result.output
     assert "preserved" in result.output
+    assert "--extract-images" in result.output
+    assert "--images-dir" in result.output
+
+
+def test_batch_convert_with_images(tmp_path):
+    """Test batch conversion with image extraction."""
+    test_dir = tmp_path / "notes"
+    test_dir.mkdir()
+
+    # Create test file with an image
+    test_file = test_dir / "with_image.boxnote"
+    # 1x1 transparent PNG data URI
+    data_uri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+    test_data = {
+        "doc": {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Text before image"}],
+                },
+                {
+                    "type": "image",
+                    "attrs": {
+                        "src": data_uri,
+                        "alt": "Test Image",
+                    },
+                },
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Text after image"}],
+                },
+            ],
+        }
+    }
+    with open(test_file, "w") as f:
+        json.dump(test_data, f)
+
+    # Run batch conversion with image extraction
+    runner = CliRunner()
+    result = runner.invoke(cli, ["batch-convert", str(test_dir), "-v"])
+
+    assert result.exit_code == 0
+    assert "Extracting image: Test Image" in result.output
+    assert "Total: 1 image(s)" in result.output
+
+    # Verify markdown file created
+    md_file = test_dir / "with_image.md"
+    assert md_file.exists()
+
+    # Verify images directory created
+    images_dir = test_dir / "with_image_images"
+    assert images_dir.exists()
+
+    # Verify image file extracted
+    image_files = list(images_dir.glob("*.png"))
+    assert len(image_files) == 1
+
+    # Verify markdown references the image
+    md_content = md_file.read_text()
+    assert "![Test Image]" in md_content
+    assert "with_image_images/" in md_content
+
+
+def test_batch_convert_no_extract_images(tmp_path):
+    """Test batch conversion with image extraction disabled."""
+    test_dir = tmp_path / "notes"
+    test_dir.mkdir()
+
+    # Create test file with an image
+    test_file = test_dir / "with_image.boxnote"
+    test_data = {
+        "doc": {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "image",
+                    "attrs": {
+                        "src": "https://example.com/image.png",
+                        "alt": "External Image",
+                    },
+                },
+            ],
+        }
+    }
+    with open(test_file, "w") as f:
+        json.dump(test_data, f)
+
+    # Run batch conversion with image extraction disabled
+    runner = CliRunner()
+    result = runner.invoke(cli, ["batch-convert", str(test_dir), "--no-extract-images"])
+
+    assert result.exit_code == 0
+
+    # Verify no images directory created
+    images_dir = test_dir / "with_image_images"
+    assert not images_dir.exists()
+
+    # Verify markdown still has external URL
+    md_file = test_dir / "with_image.md"
+    md_content = md_file.read_text()
+    assert "https://example.com/image.png" in md_content
+
+
+def test_batch_convert_custom_images_dir(tmp_path):
+    """Test batch conversion with custom images directory."""
+    test_dir = tmp_path / "notes"
+    test_dir.mkdir()
+    custom_images_dir = tmp_path / "all_images"
+
+    # Create test file with an image
+    test_file = test_dir / "note.boxnote"
+    data_uri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+    test_data = {
+        "doc": {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "image",
+                    "attrs": {"src": data_uri, "alt": "Image"},
+                },
+            ],
+        }
+    }
+    with open(test_file, "w") as f:
+        json.dump(test_data, f)
+
+    # Run batch conversion with custom images directory
+    runner = CliRunner()
+    result = runner.invoke(
+        cli, ["batch-convert", str(test_dir), "--images-dir", str(custom_images_dir)]
+    )
+
+    assert result.exit_code == 0
+
+    # Verify custom images directory created
+    assert custom_images_dir.exists()
+
+    # Verify image file in custom directory
+    image_files = list(custom_images_dir.glob("*.png"))
+    assert len(image_files) >= 1

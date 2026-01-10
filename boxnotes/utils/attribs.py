@@ -93,7 +93,7 @@ def parse_attribute_string(attrib_string: str) -> List[AttributeChunk]:
     i = 0
     while i < len(attrib_string):
         # Skip to start of next chunk
-        while i < len(attrib_string) and attrib_string[i] not in ('*', '+'):
+        while i < len(attrib_string) and attrib_string[i] not in ("*", "+"):
             i += 1
 
         if i >= len(attrib_string):
@@ -104,11 +104,11 @@ def parse_attribute_string(attrib_string: str) -> List[AttributeChunk]:
         attributes: Set[int] = set()
 
         # Parse attributes (consecutive * patterns)
-        while i < len(attrib_string) and attrib_string[i] == '*':
+        while i < len(attrib_string) and attrib_string[i] == "*":
             i += 1  # Skip the *
             # Extract attribute number (until we hit another * or +)
             num_str = ""
-            while i < len(attrib_string) and attrib_string[i] not in ('*', '+', '|'):
+            while i < len(attrib_string) and attrib_string[i] not in ("*", "+", "|"):
                 num_str += attrib_string[i]
                 i += 1
 
@@ -122,11 +122,11 @@ def parse_attribute_string(attrib_string: str) -> List[AttributeChunk]:
         num_chars = 0
         num_breaks = 0
 
-        if i < len(attrib_string) and attrib_string[i] == '+':
+        if i < len(attrib_string) and attrib_string[i] == "+":
             i += 1  # Skip the +
             # Extract character count (until we hit | or next chunk marker)
             count_str = ""
-            while i < len(attrib_string) and attrib_string[i] not in ('|', '*', '+'):
+            while i < len(attrib_string) and attrib_string[i] not in ("|", "*", "+"):
                 count_str += attrib_string[i]
                 i += 1
 
@@ -137,11 +137,11 @@ def parse_attribute_string(attrib_string: str) -> List[AttributeChunk]:
                     pass
 
         # Check for linebreaks (starts with |)
-        if i < len(attrib_string) and attrib_string[i] == '|':
+        if i < len(attrib_string) and attrib_string[i] == "|":
             i += 1  # Skip the |
             # Extract linebreak count (until we hit + or * which starts a new chunk)
             break_str = ""
-            while i < len(attrib_string) and attrib_string[i] not in ('*', '+'):
+            while i < len(attrib_string) and attrib_string[i] not in ("*", "+"):
                 break_str += attrib_string[i]
                 i += 1
 
