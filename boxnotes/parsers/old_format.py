@@ -112,21 +112,38 @@ class OldFormatParser(BoxNoteParser):
                         current_block.append(TextSpan(remaining, text_attrs))
                 continue
 
-            # Detect block type from attributes
+            # Detect block type from attributes, but only for setting the current context
+            # Don't split blocks mid-line just because attributes change
             if attributes:
                 block_type = self._detect_block_type(attributes)
-                if block_type != current_block_type and current_block:
-                    # Block type changed, start new block
-                    block = self._create_block(
-                        current_block_type, current_block, current_block_attrs
-                    )
-                    if block:
-                        blocks.append(block)
-                    current_block = []
-                    current_block_attrs = {}
 
-                current_block_type = block_type
-                current_block_attrs = dict(attributes)
+                # Only change block type if we haven't started accumulating content yet
+                # This prevents splitting words/lines just because formatting changes
+                if not current_block:
+                    current_block_type = block_type
+                    current_block_attrs = dict(attributes)
+                # If we have content and block type changes significantly (to/from list),
+                # and the text starts with a newline or bullet, then split
+                elif block_type != current_block_type:
+                    # Check if this is a significant block type change (list vs non-list)
+                    is_list_change = (
+                        (block_type == BlockType.LIST and current_block_type != BlockType.LIST)
+                        or (block_type != BlockType.LIST and current_block_type == BlockType.LIST)
+                    )
+
+                    # Only split if it's a list boundary and text looks like a list item
+                    if is_list_change and text_content and (
+                        text_content[0] in ('*', '-', '•') or text_content[0].isdigit()
+                    ):
+                        # Finish current block
+                        block = self._create_block(
+                            current_block_type, current_block, current_block_attrs
+                        )
+                        if block:
+                            blocks.append(block)
+                        current_block = []
+                        current_block_type = block_type
+                        current_block_attrs = dict(attributes)
 
             # Convert attributes to TextAttributes
             text_attrs = self._attributes_to_text_attributes(attributes)
@@ -259,8 +276,20 @@ class OldFormatParser(BoxNoteParser):
         elif block_type == BlockType.LIST:
             # Determine list type from attributes
             list_type = self._extract_list_type(attributes)
+
+            # In old format, list-marked content should become a list item
+            # Create a list item child with the content
+            list_item = Block(
+                type=BlockType.LIST_ITEM,
+                content=content,
+                attributes=attributes,
+            )
+
             return Block(
-                type=BlockType.LIST, list_type=list_type, attributes=attributes
+                type=BlockType.LIST,
+                list_type=list_type,
+                children=[list_item],
+                attributes=attributes,
             )
 
         else:

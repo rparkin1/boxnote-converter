@@ -241,10 +241,14 @@ def extract_text_spans(
 
         # Handle line breaks
         if chunk.num_linebreaks > 0:
-            # Add linebreaks to the text
-            linebreaks = "\n" * chunk.num_linebreaks
-            position = min(position + chunk.num_linebreaks, len(text))
-            spans.append((linebreaks, []))
+            # Extract linebreaks FROM the text at current position
+            end_pos = min(position + chunk.num_linebreaks, len(text))
+            linebreak_text = text[position:end_pos]
+            position = end_pos
+
+            # Only add span if we extracted actual text
+            if linebreak_text:
+                spans.append((linebreak_text, []))
 
     return spans
 
